@@ -1,0 +1,9 @@
+Dockerfile
+.dockerignore
+*.md
+*.test
+*.out
+vendor/
+.git/
+.idea/
+.vscode/

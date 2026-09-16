@@ -18,6 +18,10 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(healthcheck())
+	}
+
 	logger.Setup()
 
 	if err := run(); err != nil {
@@ -26,8 +30,28 @@ func main() {
 	}
 }
 
+// addr returns the listen address; PORT overrides the default 8081.
+func addr() string {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8081"
+	}
+	return ":" + port
+}
+
+// healthcheck probes the local /health endpoint; used by Docker HEALTHCHECK
+// because the distroless runtime image has no shell, curl or wget.
+func healthcheck() int {
+	client := &http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://127.0.0.1" + addr() + "/health")
+	if err != nil || resp.StatusCode != http.StatusOK {
+		return 1
+	}
+	return 0
+}
+
 func run() error {
-	lis, err := net.Listen("tcp", ":8081")
+	lis, err := net.Listen("tcp", addr())
 	if err != nil {
 		return err
 	}
@@ -54,7 +78,7 @@ func run() error {
 
 	errChan := make(chan error, 1)
 	go func() {
-		logger.Log.Info("starting HTTP server", zap.String("address", ":8081"))
+		logger.Log.Info("starting HTTP server", zap.String("address", addr()))
 		if err := srv.Serve(lis); err != nil {
 			errChan <- fmt.Errorf("error serving HTTP: %w", err)
 		}
