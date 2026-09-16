@@ -85,14 +85,14 @@ jobs:
         image: [docker-project-backend, docker-project-frontend]
     steps:
       - name: Full report (all severities, informational)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ secrets.DOCKER_USER }}/${{ matrix.image }}:latest
           scanners: vuln,secret,misconfig
           format: table
           exit-code: "0"
       - name: Gate on CRITICAL/HIGH
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ secrets.DOCKER_USER }}/${{ matrix.image }}:latest
           scanners: vuln,secret
