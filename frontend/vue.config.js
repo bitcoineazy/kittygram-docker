@@ -2,7 +2,6 @@ module.exports = {
   devServer: {
     disableHostCheck: true,
   },
-  publicPath: process.env.NODE_ENV === 'production'
-    ? '/momo-store/'
-    : '/'
+  // VUE_APP_PUBLIC_PATH lets the image be served from any prefix (default: site root)
+  publicPath: process.env.VUE_APP_PUBLIC_PATH || '/'
 };
