@@ -1,0 +1,123 @@
+# Momo Store: nginx (frontend + API proxy) -> backend (Go).
+#
+#   docker compose up -d --build                # production-like stack
+#   docker compose up -d --scale backend=3      # horizontal scaling, nginx balances
+#   docker compose --profile dev up             # + hot-reload frontend on :8080
+#
+# Copy .env.example to .env to override the knobs below.
+
+x-hardening: &hardening
+  restart: unless-stopped
+  read_only: true
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  backend:
+    <<: *hardening
+    build:
+      context: ./backend
+      args:
+        VERSION: ${VERSION:-dev}
+    image: ${DOCKER_USER:-noble6}/docker-project-backend:${TAG:-latest}
+    environment:
+      PORT: "8081"
+    # no host port: reachable only through nginx inside the backend network
+    expose:
+      - "8081"
+    networks:
+      - backend-net
+    healthcheck:
+      test: ["CMD", "/app/api", "healthcheck"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 128M
+        reservations:
+          cpus: "0.05"
+          memory: 32M
+
+  frontend:
+    <<: *hardening
+    build:
+      context: ./frontend
+      args:
+        VUE_APP_API_URL: ${VUE_APP_API_URL:-/api}
+        VUE_APP_PUBLIC_PATH: ${VUE_APP_PUBLIC_PATH:-/}
+    image: ${DOCKER_USER:-noble6}/docker-project-frontend:${TAG:-latest}
+    environment:
+      BACKEND_URL: http://backend:8081
+      NGINX_PORT: "8080"
+    ports:
+      - "${FRONTEND_PORT:-80}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - frontend-net
+      - backend-net
+    # nginx needs a few writable dirs even in read-only mode
+    tmpfs:
+      - /tmp:mode=1777,size=16m
+    volumes:
+      - nginx-cache:/var/cache/nginx
+      - nginx-run:/var/run
+      - nginx-conf:/etc/nginx/conf.d
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 64M
+        reservations:
+          cpus: "0.05"
+          memory: 16M
+
+  # ---- dev profile: hot-reload frontend against the same backend ----
+  frontend-dev:
+    profiles: ["dev"]
+    image: node:16-alpine
+    working_dir: /app
+    command: sh -c "npm ci --no-audit --no-fund && npm run serve -- --port 8080"
+    user: node
+    environment:
+      VUE_APP_API_URL: http://localhost:${FRONTEND_PORT:-80}/api
+    volumes:
+      - ./frontend:/app
+      - frontend-dev-modules:/app/node_modules
+    ports:
+      - "8080:8080"
+    depends_on:
+      - frontend
+    networks:
+      - frontend-net
+
+networks:
+  frontend-net:
+    driver: bridge
+  backend-net:
+    driver: bridge
+    internal: true   # no egress from the backend network
+
+volumes:
+  nginx-cache:
+  nginx-run:
+  nginx-conf:
+  frontend-dev-modules:
