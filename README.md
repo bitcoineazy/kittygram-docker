@@ -46,6 +46,8 @@ docker compose --profile dev up
 
 ![Состояние стека](docs/img/compose-state.png)
 
+(на скриншоте стек поднят с `FRONTEND_PORT=18080`, потому что порт 80 на машине разработки занят)
+
 ## Структура
 
 ```
@@ -154,5 +156,7 @@ FRONTEND_PORT=8000 docker compose up -d
 1. `build_and_push_to_docker_hub` — дополнительно публикует теги с SHA коммита.
 2. `run-with-docker-compose` — после сборки через compose поднимает стек с `--scale backend=2 --wait` и проверяет `/healthz`, `/api/health`, `/api/products` и главную страницу.
 3. `security_scan` (новый job, после публикации) — Trivy по матрице из двух образов.
+
+![GitHub Actions](docs/img/github-actions.png)
 
 Секреты репозитория: `DOCKER_USER`, `DOCKER_PASSWORD`.
